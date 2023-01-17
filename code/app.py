@@ -2,21 +2,18 @@ from flask import Flask, request, jsonify
 import xml.etree.ElementTree as ET
 from py_heideltime import py_heideltime
 import re
+    
 
 def process(text, dct):
     results = py_heideltime(text, language='English', date_granularity="day", document_type='news', document_creation_time= dct)
     #return results[2]
 
     annotatedText = results[2]
-
-    # Regex pattern to match the xml tags
-    pattern = re.compile(r'<TIMEX3.*?>(.*?)</TIMEX3>')
     root  = ET.Element("TIMEXES")
-    # Get the text without the xml tags
-    text_without_tags = pattern.sub("", annotatedText)
+    pattern = r'<TIMEX3.*?>(.*?)</TIMEX3>'
 
-    # Iterate through the matches
-    for match in pattern.finditer(annotatedText):
+    match = re.search(pattern, annotatedText)
+    while (match):
         start_index = match.start() # Start index of the xml tag
         end_index = match.end() # End index of the xml tag
         text_span = match.group(1) # Text span within the xml tag
@@ -24,19 +21,25 @@ def process(text, dct):
         end = match.end(1) # the end index of the span in the original text
         original_st_index = start - start_index
         original_end_index = end - start + start_index
-        # print(f"Text span: {text_span}, st: {start}, end: {end}, Start index: {start_index}, End index: {end_index}")
-        # print(f"original start index: {start_index}, original end index: {original_end_index}")
-        # print(match.group())
 
         child1 = ET.fromstring(match.group())
 
         child1.set("start_index", str(start_index))
         child1.set("end_index", str(original_end_index))
         root.append(child1)
+        
+        #print(f"Tag: {match.group(1)}, Text: {match.group(2)}, Start index: {start_index}, End index: {end_index}")
+        
+        annotatedText = re.sub(match.group(), f"{match.group(1)}", annotatedText, count=1)
+
+        match = re.search(pattern, annotatedText)
+
+        if not match:
+            break
     tree = ET.ElementTree(root)
 
     return tree
-    
+
 
 app = Flask(__name__)
 
